@@ -1,7 +1,18 @@
 export default function Login() {
   return (
-    <h1 className="text-3xl text-center mt-20">
-      Login Page
-    </h1>
+    <div
+      style={{
+        background: "red",
+        color: "white",
+        height: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        fontSize: "48px",
+        fontWeight: "bold",
+      }}
+    >
+      THIS IS THE NEW LOGIN 🚀
+    </div>
   );
 }
