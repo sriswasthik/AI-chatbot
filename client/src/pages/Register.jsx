@@ -8,7 +8,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-import Card from "../components/ui/Card";
+import AuthCard from "../components/ui/AuthCard";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 
@@ -32,9 +32,7 @@ export default function Register() {
 
     if (!form.email.trim()) {
       newErrors.email = "Email is required";
-    } else if (
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)
-    ) {
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       newErrors.email = "Enter a valid email address";
     }
 
@@ -81,15 +79,21 @@ export default function Register() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <Card>
-        <h1 className="mb-2 text-3xl font-bold text-white">
-          Create Account
-        </h1>
-
-        <p className="mb-8 text-slate-400">
-          Join the Enterprise AI Chatbot platform.
-        </p>
-
+      <AuthCard
+        title="Create Account"
+        description="Join the Enterprise AI Chatbot platform."
+        footer={
+          <>
+            Already have an account?{" "}
+            <Link
+              to="/login"
+              className="font-medium text-blue-400 hover:text-blue-300"
+            >
+              Sign In
+            </Link>
+          </>
+        }
+      >
         <form onSubmit={handleSubmit} className="space-y-5">
           <Input
             label="Full Name"
@@ -147,17 +151,7 @@ export default function Register() {
             </div>
           </Button>
         </form>
-
-        <p className="mt-6 text-center text-slate-400">
-          Already have an account?{" "}
-          <Link
-            to="/login"
-            className="text-blue-400 hover:text-blue-300"
-          >
-            Sign In
-          </Link>
-        </p>
-      </Card>
+      </AuthCard>
     </motion.div>
   );
 }

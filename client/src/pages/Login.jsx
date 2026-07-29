@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Mail, Lock, ArrowRight } from "lucide-react";
 
-import Card from "../components/ui/Card";
+import AuthCard from "../components/ui/AuthCard";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 
@@ -21,6 +21,8 @@ export default function Login() {
 
     if (!form.email.trim()) {
       newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      newErrors.email = "Enter a valid email address";
     }
 
     if (!form.password.trim()) {
@@ -43,10 +45,9 @@ export default function Login() {
     setErrors({});
     setLoading(true);
 
-    // Temporary
     setTimeout(() => {
       setLoading(false);
-      alert("Backend will be connected in Sprint 7");
+      alert("Backend login will be implemented in Sprint 7.");
     }, 1500);
   }
 
@@ -56,19 +57,22 @@ export default function Login() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <Card>
-        <h1 className="mb-2 text-3xl font-bold text-white">
-          Welcome Back
-        </h1>
-
-        <p className="mb-8 text-slate-400">
-          Sign in to continue to your AI workspace.
-        </p>
-
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-5"
-        >
+      <AuthCard
+        title="Welcome Back"
+        description="Sign in to continue to your AI workspace."
+        footer={
+          <>
+            Don't have an account?{" "}
+            <Link
+              to="/register"
+              className="font-medium text-blue-400 hover:text-blue-300"
+            >
+              Create one
+            </Link>
+          </>
+        }
+      >
+        <form onSubmit={handleSubmit} className="space-y-5">
           <Input
             label="Email"
             icon={Mail}
@@ -76,10 +80,7 @@ export default function Login() {
             value={form.email}
             error={errors.email}
             onChange={(e) =>
-              setForm({
-                ...form,
-                email: e.target.value,
-              })
+              setForm({ ...form, email: e.target.value })
             }
           />
 
@@ -91,34 +92,18 @@ export default function Login() {
             value={form.password}
             error={errors.password}
             onChange={(e) =>
-              setForm({
-                ...form,
-                password: e.target.value,
-              })
+              setForm({ ...form, password: e.target.value })
             }
           />
 
-          <Button
-            loading={loading}
-            type="submit"
-          >
-            <div className="flex justify-center items-center gap-2">
+          <Button loading={loading} type="submit">
+            <div className="flex items-center justify-center gap-2">
               Sign In
               <ArrowRight size={18} />
             </div>
           </Button>
         </form>
-
-        <p className="mt-6 text-center text-slate-400">
-          Don't have an account?{" "}
-          <Link
-            to="/register"
-            className="text-blue-400 hover:text-blue-300"
-          >
-            Create one
-          </Link>
-        </p>
-      </Card>
+      </AuthCard>
     </motion.div>
   );
 }
