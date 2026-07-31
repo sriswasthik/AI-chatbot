@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   User,
@@ -7,12 +7,17 @@ import {
   Lock,
   ArrowRight,
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 import AuthCard from "../components/ui/AuthCard";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 
+import { registerUser } from "../services/auth.service";
+
 export default function Register() {
+  const navigate = useNavigate();
+
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -54,7 +59,7 @@ export default function Register() {
     return newErrors;
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
 
     const validationErrors = validate();
@@ -64,13 +69,27 @@ export default function Register() {
       return;
     }
 
-    setErrors({});
-    setLoading(true);
+    try {
+      setErrors({});
+      setLoading(true);
 
-    setTimeout(() => {
+      await registerUser({
+        name: form.name,
+        email: form.email,
+        password: form.password,
+      });
+
+      toast.success("Account created successfully");
+
+      navigate("/login");
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message ||
+          "Registration failed"
+      );
+    } finally {
       setLoading(false);
-      alert("Backend registration will be implemented in Sprint 7.");
-    }, 1500);
+    }
   }
 
   return (
@@ -102,7 +121,10 @@ export default function Register() {
             value={form.name}
             error={errors.name}
             onChange={(e) =>
-              setForm({ ...form, name: e.target.value })
+              setForm({
+                ...form,
+                name: e.target.value,
+              })
             }
           />
 
@@ -113,7 +135,10 @@ export default function Register() {
             value={form.email}
             error={errors.email}
             onChange={(e) =>
-              setForm({ ...form, email: e.target.value })
+              setForm({
+                ...form,
+                email: e.target.value,
+              })
             }
           />
 
@@ -125,7 +150,10 @@ export default function Register() {
             value={form.password}
             error={errors.password}
             onChange={(e) =>
-              setForm({ ...form, password: e.target.value })
+              setForm({
+                ...form,
+                password: e.target.value,
+              })
             }
           />
 

@@ -1,13 +1,20 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useContext } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Mail, Lock, ArrowRight } from "lucide-react";
+import toast from "react-hot-toast";
 
 import AuthCard from "../components/ui/AuthCard";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 
+import { AuthContext } from "../context/AuthContext";
+import { loginUser } from "../services/auth.service";
+
 export default function Login() {
+  const navigate = useNavigate();
+  const { setUser, setToken } = useContext(AuthContext);
+
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -32,7 +39,7 @@ export default function Login() {
     return newErrors;
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
 
     const validationErrors = validate();
@@ -42,13 +49,25 @@ export default function Login() {
       return;
     }
 
-    setErrors({});
-    setLoading(true);
+    try {
+      setErrors({});
+      setLoading(true);
 
-    setTimeout(() => {
+      const data = await loginUser(form);
+
+      setUser(data.user);
+      setToken(data.token);
+
+      toast.success("Login successful");
+
+      navigate("/");
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Login failed"
+      );
+    } finally {
       setLoading(false);
-      alert("Backend login will be implemented in Sprint 7.");
-    }, 1500);
+    }
   }
 
   return (
@@ -80,7 +99,10 @@ export default function Login() {
             value={form.email}
             error={errors.email}
             onChange={(e) =>
-              setForm({ ...form, email: e.target.value })
+              setForm({
+                ...form,
+                email: e.target.value,
+              })
             }
           />
 
@@ -92,7 +114,10 @@ export default function Login() {
             value={form.password}
             error={errors.password}
             onChange={(e) =>
-              setForm({ ...form, password: e.target.value })
+              setForm({
+                ...form,
+                password: e.target.value,
+              })
             }
           />
 
