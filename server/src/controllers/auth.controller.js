@@ -1,3 +1,5 @@
+import bcrypt from "bcryptjs";
+
 const users = [];
 
 export const register = async (req, res) => {
@@ -24,12 +26,16 @@ export const register = async (req, res) => {
       });
     }
 
-    // Temporary user object
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user
     const user = {
-      id: Date.now(),
+      id: Date.now().toString(),
       name,
       email,
-      password,
+      password: hashedPassword,
+      createdAt: new Date().toISOString(),
     };
 
     users.push(user);
@@ -43,7 +49,10 @@ export const register = async (req, res) => {
         email: user.email,
       },
     });
+
   } catch (error) {
+    console.error(error);
+
     return res.status(500).json({
       success: false,
       message: "Internal Server Error",
