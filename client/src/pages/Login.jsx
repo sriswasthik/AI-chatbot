@@ -4,15 +4,16 @@ import { motion } from "framer-motion";
 import { Mail, Lock, ArrowRight } from "lucide-react";
 import toast from "react-hot-toast";
 
+import { AuthContext } from "../context/AuthContext";
+import { loginUser } from "../services/auth.service";
+
 import AuthCard from "../components/ui/AuthCard";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 
-import { AuthContext } from "../context/AuthContext";
-import { loginUser } from "../services/auth.service";
-
 export default function Login() {
   const navigate = useNavigate();
+
   const { setUser, setToken } = useContext(AuthContext);
 
   const [form, setForm] = useState({
@@ -49,16 +50,16 @@ export default function Login() {
       return;
     }
 
-    try {
-      setErrors({});
-      setLoading(true);
+    setErrors({});
+    setLoading(true);
 
+    try {
       const data = await loginUser(form);
 
-      setUser(data.user);
       setToken(data.token);
+      setUser(data.user);
 
-      toast.success("Login successful");
+      toast.success("Login Successful");
 
       navigate("/");
     } catch (error) {
@@ -95,6 +96,7 @@ export default function Login() {
           <Input
             label="Email"
             icon={Mail}
+            type="email"
             placeholder="Enter your email"
             value={form.email}
             error={errors.email}
