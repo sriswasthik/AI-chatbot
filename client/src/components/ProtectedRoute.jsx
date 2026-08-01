@@ -1,11 +1,17 @@
-import { useContext } from "react";
 import { Navigate } from "react-router-dom";
-import { AuthContext } from "../context/AuthContext";
+import useAuth from "../hooks/useAuth";
+import Loader from "./ui/Loader";
 
-export default function ProtectedRoute({
-  children,
-}) {
-  const { token } = useContext(AuthContext);
+export default function ProtectedRoute({ children }) {
+  const { token, authLoading } = useAuth();
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950">
+        <Loader />
+      </div>
+    );
+  }
 
   if (!token) {
     return <Navigate to="/login" replace />;
