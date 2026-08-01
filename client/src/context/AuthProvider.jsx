@@ -11,12 +11,9 @@ import {
 
 export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-
   const [token, setTokenState] = useState(() => getToken());
-
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Save/remove token and update React state
   const updateToken = useCallback((newToken) => {
     if (newToken) {
       saveToken(newToken);
@@ -27,18 +24,18 @@ export default function AuthProvider({ children }) {
     setTokenState(newToken);
   }, []);
 
-  // Clear complete authentication state
   const logout = useCallback(() => {
     removeToken();
     setTokenState(null);
     setUser(null);
+    setAuthLoading(false);
   }, []);
 
-  // Restore authenticated user
   useEffect(() => {
     let cancelled = false;
 
     async function restoreUser() {
+      // No token = definitely logged out
       if (!token) {
         if (!cancelled) {
           setUser(null);
@@ -49,7 +46,9 @@ export default function AuthProvider({ children }) {
       }
 
       try {
-        setAuthLoading(true);
+        if (!cancelled) {
+          setAuthLoading(true);
+        }
 
         const data = await getCurrentUser();
 
@@ -63,7 +62,9 @@ export default function AuthProvider({ children }) {
         );
 
         if (!cancelled) {
-          logout();
+          removeToken();
+          setTokenState(null);
+          setUser(null);
         }
       } finally {
         if (!cancelled) {
@@ -77,7 +78,13 @@ export default function AuthProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [token, logout]);
+  }, [token]);
+
+  // console.log("AuthProvider:", {
+  //   user,
+  //   token,
+  //   authLoading,
+  // });
 
   return (
     <AuthContext.Provider

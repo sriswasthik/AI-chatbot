@@ -1,4 +1,5 @@
 import axios from "axios";
+
 import {
   getToken,
   removeToken,
@@ -28,7 +29,6 @@ api.interceptors.request.use(
 
     return config;
   },
-
   (error) => {
     return Promise.reject(error);
   }
@@ -39,25 +39,25 @@ api.interceptors.request.use(
 // ==========================================
 
 api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+  (response) => response,
 
   (error) => {
     const status = error.response?.status;
-
     const requestUrl = error.config?.url || "";
 
-    // Login/register can legitimately return 401/other errors.
-    // Don't globally redirect for authentication-page requests.
-    const isAuthRequest =
-      requestUrl.includes("/auth/login") ||
+    const isLoginRequest =
+      requestUrl.includes("/auth/login");
+
+    const isRegisterRequest =
       requestUrl.includes("/auth/register");
 
-    if (status === 401 && !isAuthRequest) {
+    const isPublicAuthRequest =
+      isLoginRequest || isRegisterRequest;
+
+    // Handle expired/invalid authenticated sessions
+    if (status === 401 && !isPublicAuthRequest) {
       removeToken();
 
-      // Prevent unnecessary repeated redirects
       if (window.location.pathname !== "/login") {
         window.location.replace("/login");
       }

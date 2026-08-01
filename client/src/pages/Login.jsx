@@ -1,12 +1,14 @@
-// import { useState, useContext } from "react";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { motion } from "framer-motion";
 import { Mail, Lock, ArrowRight } from "lucide-react";
 import toast from "react-hot-toast";
 
-// import { AuthContext } from "../context/AuthContext";
-import useAuth from "../hooks/useAuth";
+import { useAuth } from "../hooks/useAuth";
 import { loginUser } from "../services/auth.service";
 
 import AuthCard from "../components/ui/AuthCard";
@@ -15,8 +17,11 @@ import Input from "../components/ui/Input";
 
 export default function Login() {
   const navigate = useNavigate();
+  // const navigate = useNavigate();
+  const location = useLocation();
 
   const { setUser, setToken } = useAuth();
+  const from = location.state?.from?.pathname || "/";
 
   const [form, setForm] = useState({
     email: "",
@@ -63,7 +68,9 @@ export default function Login() {
 
       toast.success("Login Successful");
 
-      navigate("/");
+      navigate(from, {
+        replace: true,
+      });
     } catch (error) {
       toast.error(
         error.response?.data?.message || "Login failed"

@@ -10,25 +10,16 @@ import NotFound from "./pages/NotFound";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
-
 export default function App() {
   return (
     <Routes>
-
-      {/* Authentication Routes */}
+      {/* Public authentication routes */}
       <Route element={<AuthLayout />}>
-        <Route
-          path="/login"
-          element={<Login />}
-        />
-
-        <Route
-          path="/register"
-          element={<Register />}
-        />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
       </Route>
 
-      {/* Protected Routes */}
+      {/* Protected application route */}
       <Route
         path="/"
         element={
@@ -40,11 +31,8 @@ export default function App() {
         }
       />
 
-      <Route
-        path="*"
-        element={<NotFound />}
-      />
-
+      {/* 404 */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }
