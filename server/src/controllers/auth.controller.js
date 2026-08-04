@@ -1,24 +1,25 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-const users = [];
+import User from "../models/User.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
 
-export const register = async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
+// ==========================================
+// REGISTER
+// ==========================================
 
-    // Validation
-    if (!name || !email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "All fields are required.",
-      });
-    }
+export const register = asyncHandler(
+  async (req, res) => {
+    const {
+      name,
+      email,
+      password,
+    } = req.body;
 
-    // Check existing user
-    const existingUser = users.find(
-      (user) => user.email === email
-    );
+    // Check whether the email already exists
+    const existingUser = await User.findOne({
+      email,
+    });
 
     if (existingUser) {
       return res.status(409).json({
@@ -27,57 +28,51 @@ export const register = async (req, res) => {
       });
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Hash password before storing it
+    const hashedPassword = await bcrypt.hash(
+      password,
+      10
+    );
 
-    // Create user
-    const user = {
-      id: Date.now().toString(),
+    // Create persistent MongoDB user
+    const user = await User.create({
       name,
       email,
       password: hashedPassword,
-      createdAt: new Date().toISOString(),
-    };
-
-    users.push(user);
+    });
 
     return res.status(201).json({
       success: true,
       message: "User registered successfully.",
       user: {
-        id: user.id,
+        id: user._id,
         name: user.name,
         email: user.email,
+        role: user.role,
       },
     });
-
-  } catch (error) {
-    console.error(error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Internal Server Error",
-    });
   }
-};
+);
 
-export const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
+// ==========================================
+// LOGIN
+// ==========================================
 
-    // Validate input
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Email and password are required.",
-      });
-    }
+export const login = asyncHandler(
+  async (req, res) => {
+    const {
+      email,
+      password,
+    } = req.body;
 
-    // Find user
-    const user = users.find(
-      (u) => u.email === email
-    );
+    // Password is select:false in User model,
+    // so explicitly include it for authentication.
+    const user = await User.findOne({
+      email,
+    }).select("+password");
 
+    // Same response for unknown email and wrong
+    // password to avoid exposing account existence.
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -85,7 +80,15 @@ export const login = async (req, res) => {
       });
     }
 
-    // Compare password
+    // Block disabled accounts
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account is inactive.",
+      });
+    }
+
+    // Compare plaintext input against bcrypt hash
     const passwordMatch = await bcrypt.compare(
       password,
       user.password
@@ -98,15 +101,17 @@ export const login = async (req, res) => {
       });
     }
 
-    // Generate JWT
+    // Generate authentication token
     const token = jwt.sign(
       {
-        id: user.id,
+        id: user._id.toString(),
         email: user.email,
+        role: user.role,
       },
       process.env.JWT_SECRET,
       {
-        expiresIn: process.env.JWT_EXPIRES_IN,
+        expiresIn:
+          process.env.JWT_EXPIRES_IN || "7d",
       }
     );
 
@@ -115,25 +120,48 @@ export const login = async (req, res) => {
       message: "Login successful.",
       token,
       user: {
-        id: user.id,
+        id: user._id,
         name: user.name,
         email: user.email,
+        role: user.role,
       },
     });
+  }
+);
 
-  } catch (error) {
-    console.error(error);
+// ==========================================
+// CURRENT AUTHENTICATED USER
+// ==========================================
 
-    return res.status(500).json({
-      success: false,
-      message: "Internal Server Error",
+export const getCurrentUser = asyncHandler(
+  async (req, res) => {
+    // req.user.id comes from the verified JWT
+    const user = await User.findById(
+      req.user.id
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account is inactive.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
     });
   }
-};
-
-export const getCurrentUser = (req, res) => {
-  return res.status(200).json({
-    success: true,
-    user: req.user,
-  });
-};
+);
