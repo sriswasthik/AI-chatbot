@@ -8,6 +8,7 @@ import {
   notFound,
   errorHandler,
 } from "./middleware/error.middleware.js";
+import chatRoutes from "./routes/chat.routes.js";
 
 const app = express();
 
@@ -50,6 +51,8 @@ app.get("/", (req, res) => {
     message: "Enterprise AI Chatbot API is running 🚀",
   });
 });
+app.use("/api/auth", authRoutes);
+app.use("/api/chat", chatRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
