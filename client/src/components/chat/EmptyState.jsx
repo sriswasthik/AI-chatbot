@@ -10,7 +10,7 @@ export default function EmptyState() {
       </h2>
 
       <p className="text-gray-400 mt-2">
-        Start a conversation with Azure OpenAI.
+        Ask anything. Responses are powered by multiple AI models.
       </p>
     </div>
   );
