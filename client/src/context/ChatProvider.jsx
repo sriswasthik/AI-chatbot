@@ -1,4 +1,8 @@
-import { useState, useCallback } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+} from "react";
 
 import { ChatContext } from "./ChatContext";
 import { sendMessage as sendMessageRequest } from "../services/chat.service";
@@ -6,8 +10,11 @@ import { sendMessage as sendMessageRequest } from "../services/chat.service";
 export default function ChatProvider({ children }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
-
   const [provider, setProvider] = useState("auto");
+
+  useEffect(() => {
+    console.log("Messages State:", messages);
+  }, [messages]);
 
   const sendMessage = useCallback(
     async (content) => {
@@ -19,37 +26,54 @@ export default function ChatProvider({ children }) {
         content,
       };
 
+      console.log("User Message:", userMessage);
+
       setMessages((prev) => [...prev, userMessage]);
 
       setLoading(true);
 
       try {
-        const response = await sendMessageRequest({
+        const { data } = await sendMessageRequest({
           message: content,
           provider,
         });
 
+        console.log("AI Response:", data);
+
         const assistantMessage = {
           id: Date.now() + 1,
           role: "assistant",
-          content: response.data.content,
-          provider: response.data.provider,
-          model: response.data.model,
-          latencyMs: response.data.latencyMs,
+          content: data.content,
+          provider: data.provider,
+          model: data.model,
+          latencyMs: data.latencyMs,
         };
+
+        console.log(
+          "Assistant Message:",
+          assistantMessage
+        );
 
         setMessages((prev) => [
           ...prev,
           assistantMessage,
         ]);
       } catch (error) {
+        console.error("Chat Error:", error);
+
         const assistantMessage = {
           id: Date.now() + 1,
           role: "assistant",
           content:
             error.response?.data?.message ||
+            error.message ||
             "Something went wrong.",
         };
+
+        console.log(
+          "Error Message:",
+          assistantMessage
+        );
 
         setMessages((prev) => [
           ...prev,
