@@ -12,15 +12,17 @@ export default function MessageList({ messages }) {
   }, [messages]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 space-y-4">
-      {messages.map((message) => (
-        <MessageBubble
-          key={message.id}
-          message={message}
-        />
-      ))}
+    <div className="h-full overflow-y-auto p-6">
+      <div className="mx-auto max-w-4xl space-y-6">
+        {messages.map((message) => (
+          <MessageBubble
+            key={message.id}
+            message={message}
+          />
+        ))}
 
-      <div ref={bottomRef} />
+        <div ref={bottomRef} />
+      </div>
     </div>
   );
 }

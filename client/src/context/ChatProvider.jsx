@@ -1,8 +1,4 @@
-import {
-  useState,
-  useCallback,
-  useEffect,
-} from "react";
+import { useCallback, useState } from "react";
 
 import { ChatContext } from "./ChatContext";
 import { sendMessage as sendMessageRequest } from "../services/chat.service";
@@ -12,47 +8,43 @@ export default function ChatProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [provider, setProvider] = useState("auto");
 
-  useEffect(() => {
-    console.log("Messages State:", messages);
-  }, [messages]);
-
   const sendMessage = useCallback(
     async (content) => {
       if (!content.trim() || loading) return;
 
       const userMessage = {
-        id: Date.now(),
+        id: crypto.randomUUID(),
         role: "user",
         content,
+        createdAt: new Date().toISOString(),
       };
 
-      console.log("User Message:", userMessage);
-
       setMessages((prev) => [...prev, userMessage]);
-
       setLoading(true);
 
       try {
-        const { data } = await sendMessageRequest({
+        const response = await sendMessageRequest({
           message: content,
           provider,
         });
 
-        console.log("AI Response:", data);
+        // chat.service returns the API response body:
+        // { success: true, data: { content, provider, model, latencyMs } }
+        const aiData = response.data;
+
+        if (!aiData?.content) {
+          throw new Error("AI response did not contain content.");
+        }
 
         const assistantMessage = {
-          id: Date.now() + 1,
+          id: crypto.randomUUID(),
           role: "assistant",
-          content: data.content,
-          provider: data.provider,
-          model: data.model,
-          latencyMs: data.latencyMs,
+          content: aiData.content,
+          provider: aiData.provider,
+          model: aiData.model,
+          latencyMs: aiData.latencyMs,
+          createdAt: new Date().toISOString(),
         };
-
-        console.log(
-          "Assistant Message:",
-          assistantMessage
-        );
 
         setMessages((prev) => [
           ...prev,
@@ -61,23 +53,20 @@ export default function ChatProvider({ children }) {
       } catch (error) {
         console.error("Chat Error:", error);
 
-        const assistantMessage = {
-          id: Date.now() + 1,
+        const errorMessage = {
+          id: crypto.randomUUID(),
           role: "assistant",
           content:
             error.response?.data?.message ||
             error.message ||
             "Something went wrong.",
+          createdAt: new Date().toISOString(),
+          isError: true,
         };
-
-        console.log(
-          "Error Message:",
-          assistantMessage
-        );
 
         setMessages((prev) => [
           ...prev,
-          assistantMessage,
+          errorMessage,
         ]);
       } finally {
         setLoading(false);
@@ -86,9 +75,9 @@ export default function ChatProvider({ children }) {
     [loading, provider]
   );
 
-  const clearChat = () => {
+  const clearChat = useCallback(() => {
     setMessages([]);
-  };
+  }, []);
 
   return (
     <ChatContext.Provider
@@ -104,4 +93,4 @@ export default function ChatProvider({ children }) {
       {children}
     </ChatContext.Provider>
   );
-}   
+}

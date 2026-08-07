@@ -1,52 +1,108 @@
-import { useState } from "react";
-import { Send, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Send } from "lucide-react";
 
 import { useChat } from "../../hooks/useChat";
 
 export default function ChatInput() {
   const [input, setInput] = useState("");
+  const textareaRef = useRef(null);
 
   const { sendMessage, loading } = useChat();
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  useEffect(() => {
+    const textarea = textareaRef.current;
 
-    if (!input.trim() || loading) return;
+    if (!textarea) return;
 
-    const message = input;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(
+      textarea.scrollHeight,
+      160
+    )}px`;
+  }, [input]);
+
+  async function handleSubmit() {
+    const message = input.trim();
+
+    if (!message || loading) return;
 
     setInput("");
+
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
 
     await sendMessage(message);
   }
 
+  function handleKeyDown(event) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSubmit();
+    }
+  }
+
   return (
-    <div className="border-t border-gray-800 p-4">
-      <form
-        onSubmit={handleSubmit}
-        className="flex gap-3"
-      >
-        <input
-          type="text"
+    <div className="border-t border-slate-800 bg-gray-950 p-4">
+      <div className="flex items-end gap-3">
+        <textarea
+          ref={textareaRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(event) => setInput(event.target.value)}
+          onKeyDown={handleKeyDown}
+          rows={1}
           placeholder="Ask anything..."
           disabled={loading}
-          className="flex-1 rounded-lg bg-gray-900 border border-gray-700 px-4 py-3 outline-none disabled:opacity-60"
+          className="
+            max-h-40
+            min-h-[48px]
+            flex-1
+            resize-none
+            overflow-y-auto
+            rounded-xl
+            border
+            border-slate-700
+            bg-slate-900
+            px-4
+            py-3
+            text-white
+            outline-none
+            transition
+            placeholder:text-slate-500
+            focus:border-blue-500
+            disabled:cursor-not-allowed
+            disabled:opacity-60
+          "
         />
 
         <button
-          type="submit"
-          disabled={loading}
-          className="bg-blue-600 px-4 rounded-lg hover:bg-blue-700 transition disabled:opacity-60 flex items-center justify-center"
+          type="button"
+          onClick={handleSubmit}
+          disabled={!input.trim() || loading}
+          className="
+            flex
+            h-12
+            w-12
+            items-center
+            justify-center
+            rounded-xl
+            bg-blue-600
+            text-white
+            transition
+            hover:bg-blue-700
+            disabled:cursor-not-allowed
+            disabled:bg-slate-700
+            disabled:text-slate-500
+          "
+          aria-label="Send message"
         >
-          {loading ? (
-            <Loader2 size={20} className="animate-spin" />
-          ) : (
-            <Send size={20} />
-          )}
+          <Send size={20} />
         </button>
-      </form>
+      </div>
+
+      <p className="mt-2 text-center text-xs text-slate-600">
+        Enter to send · Shift + Enter for new line
+      </p>
     </div>
   );
 }
