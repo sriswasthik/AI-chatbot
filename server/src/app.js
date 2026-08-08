@@ -3,14 +3,23 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
+
 import authRoutes from "./routes/auth.routes.js";
+import chatRoutes from "./routes/chat.routes.js";
+import conversationRoutes from "./routes/conversation.routes.js";
+
 import {
   notFound,
   errorHandler,
 } from "./middleware/error.middleware.js";
-import chatRoutes from "./routes/chat.routes.js";
 
 const app = express();
+
+/*
+|--------------------------------------------------------------------------
+| Global Middleware
+|--------------------------------------------------------------------------
+*/
 
 app.use(
   cors({
@@ -28,7 +37,12 @@ app.use(
     limit: "10kb",
   })
 );
-app.use("/api/auth", authRoutes);
+
+/*
+|--------------------------------------------------------------------------
+| Rate Limiting
+|--------------------------------------------------------------------------
+*/
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -44,17 +58,44 @@ const limiter = rateLimit({
 
 app.use(limiter);
 
+/*
+|--------------------------------------------------------------------------
+| Health Check
+|--------------------------------------------------------------------------
+*/
 
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
-    message: "Enterprise AI Chatbot API is running 🚀",
+    message:
+      "Enterprise AI Chatbot API is running 🚀",
   });
 });
+
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
+
 app.use("/api/auth", authRoutes);
+
 app.use("/api/chat", chatRoutes);
 
+app.use(
+  "/api/conversations",
+  conversationRoutes
+);
+
+/*
+|--------------------------------------------------------------------------
+| Error Handling
+|--------------------------------------------------------------------------
+*/
+
+// Must stay AFTER all routes
 app.use(notFound);
+
 app.use(errorHandler);
 
 export default app;

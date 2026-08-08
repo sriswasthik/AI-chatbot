@@ -10,12 +10,7 @@ async function startServer() {
     await connectDatabase();
 
     app.listen(PORT, () => {
-      console.log(`
-==========================================
-Enterprise AI Chatbot API Started
-http://localhost:${PORT}
-==========================================
-      `);
+      console.log(`Server running on port ${PORT}`);
     });
   } catch (error) {
     console.error(
