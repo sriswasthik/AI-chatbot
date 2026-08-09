@@ -17,7 +17,15 @@ const app = express();
 
 /*
 |--------------------------------------------------------------------------
-| Global Middleware
+| Security
+|--------------------------------------------------------------------------
+*/
+
+app.use(helmet());
+
+/*
+|--------------------------------------------------------------------------
+| CORS
 |--------------------------------------------------------------------------
 */
 
@@ -28,12 +36,29 @@ app.use(
   })
 );
 
-app.use(helmet());
+/*
+|--------------------------------------------------------------------------
+| Logging
+|--------------------------------------------------------------------------
+*/
 
 app.use(morgan("dev"));
 
+/*
+|--------------------------------------------------------------------------
+| Body Parser
+|--------------------------------------------------------------------------
+*/
+
 app.use(
   express.json({
+    limit: "10kb",
+  })
+);
+
+app.use(
+  express.urlencoded({
+    extended: true,
     limit: "10kb",
   })
 );
@@ -46,17 +71,22 @@ app.use(
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
+
   max: 100,
+
   standardHeaders: true,
+
   legacyHeaders: false,
+
   message: {
     success: false,
+
     message:
       "Too many requests. Please try again later.",
   },
 });
 
-app.use(limiter);
+app.use("/api", limiter);
 
 /*
 |--------------------------------------------------------------------------
@@ -67,8 +97,9 @@ app.use(limiter);
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
+
     message:
-      "Enterprise AI Chatbot API is running 🚀",
+      "Enterprise AI Chatbot API is running",
   });
 });
 
@@ -78,9 +109,15 @@ app.get("/", (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-app.use("/api/auth", authRoutes);
+app.use(
+  "/api/auth",
+  authRoutes
+);
 
-app.use("/api/chat", chatRoutes);
+app.use(
+  "/api/chat",
+  chatRoutes
+);
 
 app.use(
   "/api/conversations",
@@ -93,7 +130,6 @@ app.use(
 |--------------------------------------------------------------------------
 */
 
-// Must stay AFTER all routes
 app.use(notFound);
 
 app.use(errorHandler);
