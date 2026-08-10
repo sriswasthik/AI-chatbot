@@ -25,12 +25,12 @@ router.post(
   register
 );
 
-// router.post(
-//   "/login",
-//   authLimiter,
-//   validate(loginSchema),
-//   login
-// );
+router.post(
+  "/login",
+  authLimiter,
+  validate(loginSchema),
+  login
+);
 
 router.post(
   "/register",
