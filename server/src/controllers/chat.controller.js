@@ -1,12 +1,130 @@
+import mongoose from "mongoose";
+
 import Conversation from "../models/Conversation.js";
+import Message from "../models/Message.js";
 
-import {
-  generateAIResponse,
-} from "../services/ai/ai.gateway.js";
+import { generateAIResponse } from "../services/ai/ai.gateway.js";
+import { AI_HISTORY_LIMIT } from "../config/ai.config.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
 
-import {
-  asyncHandler,
-} from "../utils/asyncHandler.js";
+/*
+|--------------------------------------------------------------------------
+| Title
+|--------------------------------------------------------------------------
+|
+| The first user message names the conversation. `title` is capped at 100
+| in the schema; 60 keeps the sidebar readable.
+*/
+
+function buildTitle(message) {
+  const title = message.trim().slice(0, 60);
+
+  return title.length < message.trim().length
+    ? `${title}...`
+    : title;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Conversation resolution
+|--------------------------------------------------------------------------
+|
+| Two rules, both load-bearing for the duplicate-conversation bug:
+|
+|   1. A conversationId that is present but unusable is an error. It is
+|      never downgraded into "create a new conversation", because that is
+|      exactly how one chat silently becomes several.
+|
+|   2. Ownership always comes from req.user. The lookup is scoped by user,
+|      so another user's id is indistinguishable from a missing one and
+|      returns 404 without confirming the conversation exists.
+*/
+
+async function resolveConversation({
+  conversationId,
+  userId,
+  message,
+  provider,
+}) {
+  if (!conversationId) {
+    const conversation = await Conversation.create({
+      user: userId,
+      title: buildTitle(message),
+      provider,
+    });
+
+    return { conversation, created: true };
+  }
+
+  if (!mongoose.isValidObjectId(conversationId)) {
+    const error = new Error(
+      "Invalid conversation id."
+    );
+
+    error.statusCode = 400;
+
+    throw error;
+  }
+
+  const conversation = await Conversation.findOne({
+    _id: conversationId,
+    user: userId,
+  });
+
+  if (!conversation) {
+    const error = new Error(
+      "Conversation not found."
+    );
+
+    error.statusCode = 404;
+
+    throw error;
+  }
+
+  return { conversation, created: false };
+}
+
+/*
+|--------------------------------------------------------------------------
+| History
+|--------------------------------------------------------------------------
+|
+| The most recent turns, oldest first, in the shape the providers expect.
+| Fetching newest-first and reversing keeps the limit on the right end of
+| the conversation.
+*/
+
+async function loadHistory(conversationId) {
+  const messages = await Message.find({
+    conversation: conversationId,
+  })
+    .sort({ createdAt: -1, _id: -1 })
+    .limit(AI_HISTORY_LIMIT)
+    .select("role content")
+    .lean();
+
+  return messages.reverse().map((message) => ({
+    role: message.role,
+    content: message.content,
+  }));
+}
+
+/*
+|--------------------------------------------------------------------------
+| Send Message
+|--------------------------------------------------------------------------
+| POST /api/chat
+|
+| Request body (validated by chatSchema):
+|   { message, provider?, model?, conversationId? }
+|
+| Response:
+|   { success, data: { conversationId, content, provider, model, latencyMs } }
+|
+| On AI failure the response still carries conversationId so the client can
+| keep the user on the same conversation instead of starting a new one with
+| the next message.
+*/
 
 export const sendMessage = asyncHandler(
   async (req, res) => {
@@ -14,238 +132,111 @@ export const sendMessage = asyncHandler(
       message,
       provider = "auto",
       model,
+      conversationId = null,
     } = req.body;
 
-    /*
-    |--------------------------------------------------------------------------
-    | Conversation ID
-    |--------------------------------------------------------------------------
-    |
-    | Accept it from BOTH:
-    |
-    | req.body.conversationId
-    |
-    | AND
-    |
-    | req.query.conversationId
-    |
-    */
+    const userId = req.user.id;
 
-    const conversationId =
-      req.body?.conversationId ||
-      req.query?.conversationId ||
-      null;
-
-    console.log(
-      "========================================"
-    );
-
-    console.log(
-      "CHAT REQUEST"
-    );
-
-    console.log(
-      "User:",
-      req.user?.id
-    );
-
-    console.log(
-      "Message:",
-      message
-    );
-
-    console.log(
-      "Body conversationId:",
-      req.body?.conversationId
-    );
-
-    console.log(
-      "Query conversationId:",
-      req.query?.conversationId
-    );
-
-    console.log(
-      "FINAL conversationId:",
-      conversationId
-    );
-
-    console.log(
-      "========================================"
-    );
-
-    /*
-    |--------------------------------------------------------------------------
-    | Validate message
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-      !message ||
-      typeof message !== "string" ||
-      !message.trim()
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Message is required.",
+    const { conversation, created } =
+      await resolveConversation({
+        conversationId,
+        userId,
+        message,
+        provider,
       });
-    }
 
     /*
-    |--------------------------------------------------------------------------
-    | Find existing conversation
-    |--------------------------------------------------------------------------
+    | Resolved once and reused everywhere below, so the id returned to the
+    | client is always the id the messages were written against.
     */
 
-    let conversation;
-
-    if (conversationId) {
-      console.log(
-        "LOOKING FOR EXISTING CONVERSATION:",
-        conversationId
-      );
-
-      conversation =
-        await Conversation.findOne({
-          _id: conversationId,
-          user: req.user.id,
-        });
-
-      if (!conversation) {
-        console.log(
-          "CONVERSATION NOT FOUND:",
-          conversationId
-        );
-
-        return res.status(404).json({
-          success: false,
-          message:
-            "Conversation not found.",
-        });
-      }
-
-      console.log(
-        "EXISTING CONVERSATION FOUND:",
-        conversation._id.toString()
-      );
-    }
+    const activeConversationId =
+      conversation._id.toString();
 
     /*
-    |--------------------------------------------------------------------------
-    | Create new conversation
-    |--------------------------------------------------------------------------
+    | Persist the user turn before calling the provider so a provider
+    | failure never loses what the user typed.
     */
 
-    else {
-      console.log(
-        "NO CONVERSATION ID."
-      );
-
-      console.log(
-        "CREATING NEW CONVERSATION."
-      );
-
-      conversation =
-        await Conversation.create({
-          user: req.user.id,
-
-          title:
-            message.trim().slice(0, 60),
-
-          provider,
-
-          messages: [],
-        });
-
-      console.log(
-        "NEW CONVERSATION CREATED:",
-        conversation._id.toString()
-      );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Save user message
-    |--------------------------------------------------------------------------
-    */
-
-    conversation.messages.push({
+    await Message.create({
+      conversation: activeConversationId,
       role: "user",
-
       content: message.trim(),
     });
 
-    await conversation.save();
+    let result;
 
-    /*
-    |--------------------------------------------------------------------------
-    | Generate AI response
-    |--------------------------------------------------------------------------
-    */
+    try {
+      const history = await loadHistory(
+        activeConversationId
+      );
 
-    const result =
-      await generateAIResponse({
-        message: message.trim(),
-
+      result = await generateAIResponse({
+        messages: history,
         provider,
-
         model,
       });
+    } catch (error) {
+      /*
+      | Bump the conversation so the half-finished chat still sorts into
+      | the sidebar, then hand the id back with the error.
+      */
 
-    /*
-    |--------------------------------------------------------------------------
-    | Save assistant message
-    |--------------------------------------------------------------------------
-    */
+      conversation.updatedAt = new Date();
 
-    conversation.messages.push({
+      await conversation.save();
+
+      return res
+        .status(error.statusCode || 502)
+        .json({
+          success: false,
+
+          message: error.message,
+
+          data: {
+            conversationId: activeConversationId,
+          },
+        });
+    }
+
+    await Message.create({
+      conversation: activeConversationId,
       role: "assistant",
-
       content: result.content,
-
       provider: result.provider,
-
       model: result.model,
-
       latencyMs: result.latencyMs,
     });
+
+    /*
+    | Record which provider actually answered (relevant when "auto" fell
+    | through to the second choice) and refresh updatedAt for sidebar
+    | ordering. Messages live in their own collection, so this write stays
+    | small no matter how long the conversation gets.
+    */
 
     conversation.provider =
       result.provider || provider;
 
+    conversation.updatedAt = new Date();
+
     await conversation.save();
 
-    /*
-    |--------------------------------------------------------------------------
-    | Final ID
-    |--------------------------------------------------------------------------
-    */
-
-    const finalConversationId =
-      conversation._id.toString();
-
-    console.log(
-      "RETURNING CONVERSATION ID:",
-      finalConversationId
-    );
+    if (created) {
+      console.log(
+        `Created conversation ${activeConversationId} for user ${userId}`
+      );
+    }
 
     return res.status(200).json({
       success: true,
 
       data: {
-        conversationId:
-          finalConversationId,
-
-        content:
-          result.content,
-
-        provider:
-          result.provider,
-
-        model:
-          result.model,
-
-        latencyMs:
-          result.latencyMs,
+        conversationId: activeConversationId,
+        content: result.content,
+        provider: result.provider,
+        model: result.model,
+        latencyMs: result.latencyMs,
       },
     });
   }
