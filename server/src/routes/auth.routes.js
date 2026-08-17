@@ -18,6 +18,7 @@ import { authLimiter } from "../middleware/rateLimit.middleware.js";
 
 const router = express.Router();
 
+// POST /api/auth/register
 router.post(
   "/register",
   authLimiter,
@@ -25,6 +26,7 @@ router.post(
   register
 );
 
+// POST /api/auth/login
 router.post(
   "/login",
   authLimiter,
@@ -32,18 +34,7 @@ router.post(
   login
 );
 
-router.post(
-  "/register",
-  validate(registerSchema),
-  register
-);
-
-router.post(
-  "/login",
-  validate(loginSchema),
-  login
-);
-
+// GET /api/auth/me
 router.get(
   "/me",
   authenticate,
