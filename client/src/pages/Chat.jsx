@@ -1,3 +1,5 @@
+import { Loader2 } from "lucide-react";
+
 import { useChat } from "../hooks/useChat";
 
 import EmptyState from "../components/chat/EmptyState";
@@ -6,7 +8,32 @@ import ChatInput from "../components/chat/ChatInput";
 import ProviderSelector from "../components/chat/ProviderSelector";
 
 export default function Chat() {
-  const { messages } = useChat();
+  const { messages, loading, conversationLoading } =
+    useChat();
+
+  function renderBody() {
+    if (conversationLoading) {
+      return (
+        <div className="flex h-full items-center justify-center text-slate-500">
+          <Loader2
+            size={22}
+            className="animate-spin"
+          />
+        </div>
+      );
+    }
+
+    if (messages.length === 0) {
+      return <EmptyState />;
+    }
+
+    return (
+      <MessageList
+        messages={messages}
+        loading={loading}
+      />
+    );
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -21,11 +48,7 @@ export default function Chat() {
       </div>
 
       <div className="min-h-0 flex-1">
-        {messages.length > 0 ? (
-          <MessageList messages={messages} />
-        ) : (
-          <EmptyState />
-        )}
+        {renderBody()}
       </div>
 
       <ChatInput />

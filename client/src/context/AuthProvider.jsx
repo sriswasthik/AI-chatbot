@@ -80,12 +80,6 @@ export default function AuthProvider({ children }) {
     };
   }, [token]);
 
-  // console.log("AuthProvider:", {
-  //   user,
-  //   token,
-  //   authLoading,
-  // });
-
   return (
     <AuthContext.Provider
       value={{
