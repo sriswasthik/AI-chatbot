@@ -1,13 +1,15 @@
-import openaiProvider from "./providers/openai.provider.js";
 import geminiProvider from "./providers/gemini.provider.js";
 import groqProvider from "./providers/groq.provider.js";
-import openrouterProvider from "./providers/openrouter.provider.js";
+
+/*
+| Only providers with a real implementation are registered. The previous
+| OpenAI and OpenRouter adapters returned hardcoded mock strings and have
+| been removed rather than shipped in a production path.
+*/
 
 const providers = {
-  openai: openaiProvider,
   gemini: geminiProvider,
   groq: groqProvider,
-  openrouter: openrouterProvider,
 };
 
 export function getProvider(name) {
@@ -28,4 +30,10 @@ export function getProvider(name) {
 
 export function getAvailableProviders() {
   return Object.keys(providers);
+}
+
+export function getConfiguredProviders() {
+  return Object.keys(providers).filter((name) =>
+    providers[name].isConfigured()
+  );
 }
