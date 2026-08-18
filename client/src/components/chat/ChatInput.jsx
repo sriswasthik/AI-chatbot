@@ -43,8 +43,8 @@ export default function ChatInput() {
   }
 
   return (
-    <div className="border-t border-slate-800 bg-gray-950 p-4">
-      <div className="flex items-end gap-3">
+    <div className="flex-shrink-0 border-t border-slate-800 bg-gray-950 p-3 sm:p-4">
+      <div className="mx-auto flex max-w-4xl items-end gap-2 sm:gap-3">
         <textarea
           ref={textareaRef}
           value={input}
@@ -52,6 +52,7 @@ export default function ChatInput() {
           onKeyDown={handleKeyDown}
           rows={1}
           placeholder="Ask anything..."
+          maxLength={4000}
           disabled={loading}
           className="
             max-h-40
@@ -101,7 +102,10 @@ export default function ChatInput() {
       </div>
 
       <p className="mt-2 text-center text-xs text-slate-600">
-        Enter to send · Shift + Enter for new line
+        <span className="hidden sm:inline">
+          Enter to send · Shift + Enter for new line
+        </span>
+        <span className="sm:hidden">Tap send to submit</span>
       </p>
     </div>
   );

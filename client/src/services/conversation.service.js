@@ -19,10 +19,31 @@ export const createConversation = async ({
   return response.data.data;
 };
 
-export const getConversations = async () => {
-  const response = await api.get("/conversations");
+/*
+| Returns { data, pagination } so callers can page through a long sidebar.
+| `before` is the nextCursor from the previous page.
+*/
 
-  return response.data.data;
+export const getConversations = async ({
+  limit,
+  before,
+} = {}) => {
+  const params = {};
+
+  if (limit) params.limit = limit;
+  if (before) params.before = before;
+
+  const response = await api.get("/conversations", {
+    params,
+  });
+
+  return {
+    data: response.data.data,
+    pagination: response.data.pagination || {
+      hasMore: false,
+      nextCursor: null,
+    },
+  };
 };
 
 export const getConversation = async (

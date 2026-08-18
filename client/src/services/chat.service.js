@@ -19,11 +19,13 @@ export const sendMessage = async ({
   provider = "auto",
   model,
   conversationId = null,
+  retry = false,
 }) => {
   const payload = {
     message,
     provider,
     conversationId: conversationId || null,
+    retry,
   };
 
   /*
@@ -37,6 +39,17 @@ export const sendMessage = async ({
   }
 
   const response = await api.post("/chat", payload);
+
+  return response.data.data;
+};
+
+/*
+| Providers the server has keys for, so the selector never offers one that
+| is guaranteed to fail at send time.
+*/
+
+export const getProviders = async () => {
+  const response = await api.get("/chat/providers");
 
   return response.data.data;
 };
