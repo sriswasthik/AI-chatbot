@@ -2,31 +2,32 @@ import { ChevronDown, Sparkles } from "lucide-react";
 
 import { useChat } from "../../hooks/useChat";
 
-const providers = [
-  {
-    value: "auto",
-    label: "Auto",
-  },
-  {
-    value: "groq",
-    label: "Groq",
-  },
-  {
-    value: "gemini",
-    label: "Gemini",
-  },
-//   {
-//     value: "openrouter",
-//     label: "OpenRouter",
-//   },
-//   {
-//     value: "openai",
-//     label: "OpenAI",
-//   },
-];
+const LABELS = {
+  auto: "Auto",
+  groq: "Groq",
+  gemini: "Gemini",
+};
 
 export default function ProviderSelector() {
-  const { provider, setProvider, loading } = useChat();
+  const { provider, setProvider, loading, availableProviders } =
+    useChat();
+
+  /*
+  | Only offer providers the server actually has a key for. The list used
+  | to be hardcoded, so selecting an unconfigured provider failed at send
+  | time with a 503. "auto" is always valid -- the gateway resolves it.
+  */
+
+  const options = ["auto", ...availableProviders];
+
+  /*
+  | If a conversation was answered by a provider that is no longer
+  | configured, keep it selectable rather than silently switching it.
+  */
+
+  if (provider && !options.includes(provider)) {
+    options.push(provider);
+  }
 
   return (
     <div className="relative">
@@ -39,31 +40,13 @@ export default function ProviderSelector() {
         value={provider}
         onChange={(event) => setProvider(event.target.value)}
         disabled={loading}
-        className="
-          appearance-none
-          rounded-lg
-          border
-          border-slate-700
-          bg-slate-900
-          py-2
-          pl-9
-          pr-9
-          text-sm
-          text-slate-300
-          outline-none
-          transition
-          hover:border-slate-600
-          focus:border-blue-500
-          disabled:cursor-not-allowed
-          disabled:opacity-50
-        "
+        aria-label="AI provider"
+        className="appearance-none rounded-lg border border-slate-700 bg-slate-900 py-2 pl-9 pr-9 text-sm text-slate-300 outline-none transition hover:border-slate-600 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {providers.map((item) => (
-          <option
-            key={item.value}
-            value={item.value}
-          >
-            {item.label}
+        {options.map((value) => (
+          <option key={value} value={value}>
+            {LABELS[value] ||
+              value.charAt(0).toUpperCase() + value.slice(1)}
           </option>
         ))}
       </select>

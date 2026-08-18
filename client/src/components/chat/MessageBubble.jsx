@@ -1,16 +1,20 @@
-import { useState } from "react";
-import ReactMarkdown from "react-markdown";
+import { memo, useState } from "react";
 import {
+  AlertTriangle,
   Bot,
   Check,
   Copy,
+  RotateCcw,
   User,
 } from "lucide-react";
 
-export default function MessageBubble({ message }) {
+import Markdown from "./Markdown";
+
+function MessageBubble({ message, onRetry }) {
   const [copied, setCopied] = useState(false);
 
   const isUser = message.role === "user";
+  const isError = Boolean(message.isError);
 
   async function handleCopy() {
     try {
@@ -18,9 +22,7 @@ export default function MessageBubble({ message }) {
 
       setCopied(true);
 
-      setTimeout(() => {
-        setCopied(false);
-      }, 2000);
+      setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       console.error("Failed to copy message:", error);
     }
@@ -35,90 +37,114 @@ export default function MessageBubble({ message }) {
     });
   }
 
+  const hasMeta =
+    !isUser &&
+    !isError &&
+    (message.provider || message.model || message.latencyMs);
+
   return (
     <div
-      className={`group flex gap-3 ${
+      className={`group flex gap-2 sm:gap-3 ${
         isUser ? "justify-end" : "justify-start"
       }`}
     >
       {!isUser && (
-        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-emerald-600/20 text-emerald-400">
-          <Bot size={17} />
+        <div
+          className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${
+            isError
+              ? "bg-red-500/15 text-red-400"
+              : "bg-emerald-600/20 text-emerald-400"
+          }`}
+        >
+          {isError ? <AlertTriangle size={16} /> : <Bot size={17} />}
         </div>
       )}
 
       <div
-        className={`flex max-w-[80%] flex-col ${
+        className={`flex min-w-0 max-w-[88%] flex-col sm:max-w-[80%] ${
           isUser ? "items-end" : "items-start"
         }`}
       >
-        {!isUser &&
-          (message.provider ||
-            message.model ||
-            message.latencyMs) && (
-            <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              {message.provider && (
-                <span className="capitalize">
-                  {message.provider}
-                </span>
-              )}
+        {hasMeta && (
+          <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            {message.provider && (
+              <span className="capitalize">{message.provider}</span>
+            )}
 
-              {message.model && (
-                <span className="rounded-md bg-slate-800 px-2 py-0.5 text-slate-400">
-                  {message.model}
-                </span>
-              )}
+            {message.model && (
+              <span className="rounded-md bg-slate-800 px-2 py-0.5 text-slate-400">
+                {message.model}
+              </span>
+            )}
 
-              {message.latencyMs && (
-                <span>
-                  {message.latencyMs} ms
-                </span>
-              )}
-            </div>
-          )}
+            {message.latencyMs != null && (
+              <span>{message.latencyMs} ms</span>
+            )}
+          </div>
+        )}
 
         <div
-          className={`rounded-2xl px-4 py-3 ${
+          className={`min-w-0 rounded-2xl px-4 py-3 ${
             isUser
               ? "bg-blue-600 text-white"
-              : "border border-slate-800 bg-slate-900 text-slate-100"
+              : isError
+                ? "border border-red-500/40 bg-red-500/10 text-red-200"
+                : "border border-slate-800 bg-slate-900 text-slate-100"
           }`}
         >
-          <div className="prose prose-invert max-w-none break-words text-sm">
-            <ReactMarkdown>
+          {/*
+            User text is shown verbatim -- rendering it as markdown would
+            mangle anything that happens to contain markdown syntax.
+          */}
+          {isUser || isError ? (
+            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
               {message.content}
-            </ReactMarkdown>
-          </div>
+            </p>
+          ) : (
+            <div className="break-words text-sm">
+              <Markdown>{message.content}</Markdown>
+            </div>
+          )}
         </div>
 
         <div
-          className={`mt-1 flex items-center gap-2 ${
-            isUser
-              ? "flex-row-reverse"
-              : "flex-row"
+          className={`mt-1 flex items-center gap-1 ${
+            isUser ? "flex-row-reverse" : "flex-row"
           }`}
         >
           {message.createdAt && (
-            <span className="text-[11px] text-slate-600">
+            <span className="px-1 text-[11px] text-slate-600">
               {formatTime(message.createdAt)}
             </span>
           )}
 
-          {!isUser && (
+          {/*
+            Controls are always reachable on touch devices, where there is
+            no hover; they only fade in on pointer devices.
+          */}
+          <button
+            type="button"
+            onClick={handleCopy}
+            title="Copy message"
+            aria-label="Copy message"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-800 hover:text-slate-300 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
+          >
+            {copied ? (
+              <Check size={14} className="text-emerald-400" />
+            ) : (
+              <Copy size={14} />
+            )}
+          </button>
+
+          {isError && onRetry && (
             <button
               type="button"
-              onClick={handleCopy}
-              title="Copy response"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 opacity-0 transition hover:bg-slate-800 hover:text-slate-300 group-hover:opacity-100"
+              onClick={onRetry}
+              title="Retry"
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-red-300 transition hover:bg-red-500/15 hover:text-red-200"
             >
-              {copied ? (
-                <Check
-                  size={14}
-                  className="text-emerald-400"
-                />
-              ) : (
-                <Copy size={14} />
-              )}
+              <RotateCcw size={12} />
+              Retry
             </button>
           )}
         </div>
@@ -132,3 +158,11 @@ export default function MessageBubble({ message }) {
     </div>
   );
 }
+
+/*
+| Rendering a long transcript re-parses every bubble's markdown on any
+| provider update. Messages are immutable once added, so memoising cuts
+| that to only genuinely changed bubbles.
+*/
+
+export default memo(MessageBubble);

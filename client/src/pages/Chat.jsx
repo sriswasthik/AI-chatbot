@@ -8,48 +8,47 @@ import ChatInput from "../components/chat/ChatInput";
 import ProviderSelector from "../components/chat/ProviderSelector";
 
 export default function Chat() {
-  const { messages, loading, conversationLoading } =
-    useChat();
+  const {
+    messages,
+    loading,
+    conversationLoading,
+    retryMessage,
+    sendMessage,
+  } = useChat();
 
   function renderBody() {
     if (conversationLoading) {
       return (
         <div className="flex h-full items-center justify-center text-slate-500">
-          <Loader2
-            size={22}
-            className="animate-spin"
-          />
+          <Loader2 size={22} className="animate-spin" />
         </div>
       );
     }
 
     if (messages.length === 0) {
-      return <EmptyState />;
+      return <EmptyState onPick={sendMessage} />;
     }
 
     return (
       <MessageList
         messages={messages}
         loading={loading}
+        onRetry={retryMessage}
       />
     );
   }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between border-b border-slate-800 px-6 py-3">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
-            AI Provider
-          </p>
-        </div>
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-800 px-4 py-3 sm:px-6">
+        <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+          AI Provider
+        </p>
 
         <ProviderSelector />
       </div>
 
-      <div className="min-h-0 flex-1">
-        {renderBody()}
-      </div>
+      <div className="min-h-0 flex-1">{renderBody()}</div>
 
       <ChatInput />
     </div>

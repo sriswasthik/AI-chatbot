@@ -8,12 +8,16 @@ import {
 import { ChatContext } from "./ChatContext";
 import { useAuth } from "../hooks/useAuth";
 
-import { sendMessage as sendMessageRequest } from "../services/chat.service";
+import {
+  sendMessage as sendMessageRequest,
+  getProviders,
+} from "../services/chat.service";
 
 import {
   getConversations,
   getConversation,
   deleteConversation as deleteConversationRequest,
+  updateConversation as updateConversationRequest,
 } from "../services/conversation.service";
 
 /*
@@ -75,6 +79,21 @@ export default function ChatProvider({ children }) {
   const [provider, setProvider] = useState("auto");
 
   /*
+  | Providers the server actually has keys for. Until this loads the UI
+  | falls back to "auto", which the gateway always accepts.
+  */
+
+  const [availableProviders, setAvailableProviders] =
+    useState([]);
+
+  const [pagination, setPagination] = useState({
+    hasMore: false,
+    nextCursor: null,
+  });
+
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  /*
   |--------------------------------------------------------------------------
   | Synchronous conversation id
   |--------------------------------------------------------------------------
@@ -125,9 +144,12 @@ export default function ChatProvider({ children }) {
     try {
       setConversationsLoading(true);
 
-      const data = await getConversations();
+      const { data, pagination: page } =
+        await getConversations();
 
       setConversations(normalizeConversations(data));
+
+      setPagination(page);
     } catch (error) {
       console.error(
         "Failed to load conversations:",
@@ -137,6 +159,37 @@ export default function ChatProvider({ children }) {
       setConversationsLoading(false);
     }
   }, []);
+
+  /*
+  | Appends the next page. Merged through normalizeConversations, so a row
+  | that moved between pages cannot appear twice.
+  */
+
+  const loadMoreConversations = useCallback(async () => {
+    if (!pagination.hasMore || loadingMore) return;
+
+    try {
+      setLoadingMore(true);
+
+      const { data, pagination: page } =
+        await getConversations({
+          before: pagination.nextCursor,
+        });
+
+      setConversations((prev) =>
+        normalizeConversations([...prev, ...data])
+      );
+
+      setPagination(page);
+    } catch (error) {
+      console.error(
+        "Failed to load more conversations:",
+        error
+      );
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [pagination, loadingMore]);
 
   /*
   |--------------------------------------------------------------------------
@@ -228,6 +281,22 @@ export default function ChatProvider({ children }) {
     }
 
     loadConversations();
+
+    /*
+    | Ask which providers are actually configured. A failure here is not
+    | fatal: the selector falls back to "auto".
+    */
+
+    getProviders()
+      .then((data) =>
+        setAvailableProviders(data.providers || [])
+      )
+      .catch((error) =>
+        console.error(
+          "Failed to load providers:",
+          error
+        )
+      );
   }, [user, loadConversations]);
 
   /*
@@ -237,7 +306,7 @@ export default function ChatProvider({ children }) {
   */
 
   const sendMessage = useCallback(
-    async (content) => {
+    async (content, { retry = false } = {}) => {
       const trimmedContent = content.trim();
 
       // Synchronous guard -- see sendingRef above.
@@ -257,14 +326,18 @@ export default function ChatProvider({ children }) {
       const activeConversationId =
         conversationIdRef.current;
 
-      const userMessage = {
-        id: crypto.randomUUID(),
-        role: "user",
-        content: trimmedContent,
-        createdAt: new Date().toISOString(),
-      };
+      if (!retry) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "user",
+            content: trimmedContent,
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+      }
 
-      setMessages((prev) => [...prev, userMessage]);
       setLoading(true);
 
       try {
@@ -272,6 +345,7 @@ export default function ChatProvider({ children }) {
           message: trimmedContent,
           provider,
           conversationId: activeConversationId,
+          retry,
         });
 
         /*
@@ -362,6 +436,13 @@ export default function ChatProvider({ children }) {
                 "Something went wrong.",
               createdAt: new Date().toISOString(),
               isError: true,
+
+              /*
+              | Carried on the bubble so its Retry button knows what to
+              | resend, without a separate "last failed message" ref that
+              | could drift out of sync with what is on screen.
+              */
+              retryContent: trimmedContent,
             },
           ]);
         }
@@ -376,6 +457,97 @@ export default function ChatProvider({ children }) {
       loadConversations,
       setActiveConversationId,
     ]
+  );
+
+  /*
+  |--------------------------------------------------------------------------
+  | Retry a failed message
+  |--------------------------------------------------------------------------
+  |
+  | The user turn is already stored server-side from the attempt that
+  | failed, so this asks the backend to regenerate a reply for it rather
+  | than sending the text again -- which would duplicate the turn.
+  |
+  | The error bubble is dropped first so the transcript ends on the user
+  | message the retry is answering.
+  */
+
+  const retryMessage = useCallback(
+    async (messageId) => {
+      if (sendingRef.current) return;
+
+      const target = messages.find(
+        (message) => message.id === messageId
+      );
+
+      if (!target?.retryContent) return;
+
+      setMessages((prev) =>
+        prev.filter(
+          (message) => message.id !== messageId
+        )
+      );
+
+      await sendMessage(target.retryContent, {
+        retry: Boolean(conversationIdRef.current),
+      });
+    },
+    [messages, sendMessage]
+  );
+
+  /*
+  |--------------------------------------------------------------------------
+  | Rename a conversation
+  |--------------------------------------------------------------------------
+  |
+  | Applied optimistically and rolled back if the request fails, so the
+  | sidebar never shows a title the server rejected.
+  */
+
+  const renameConversation = useCallback(
+    async (id, title) => {
+      const targetId = id?.toString();
+
+      const nextTitle = title.trim();
+
+      if (!targetId || !nextTitle) return;
+
+      let previousTitle;
+
+      setConversations((prev) =>
+        prev.map((conversation) => {
+          if (conversation._id !== targetId) {
+            return conversation;
+          }
+
+          previousTitle = conversation.title;
+
+          return { ...conversation, title: nextTitle };
+        })
+      );
+
+      try {
+        await updateConversationRequest(targetId, {
+          title: nextTitle,
+        });
+      } catch (error) {
+        console.error(
+          "Failed to rename conversation:",
+          error
+        );
+
+        setConversations((prev) =>
+          prev.map((conversation) =>
+            conversation._id === targetId
+              ? { ...conversation, title: previousTitle }
+              : conversation
+          )
+        );
+
+        throw error;
+      }
+    },
+    []
   );
 
   /*
@@ -447,10 +619,16 @@ export default function ChatProvider({ children }) {
         conversationsLoading,
         conversationLoading,
         sendMessage,
+        retryMessage,
         clearChat,
         loadConversation,
         loadConversations,
+        loadMoreConversations,
         removeConversation,
+        renameConversation,
+        availableProviders,
+        hasMoreConversations: pagination.hasMore,
+        loadingMore,
       }}
     >
       {children}

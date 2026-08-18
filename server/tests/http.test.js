@@ -272,3 +272,132 @@ test("auth routes are registered exactly once", async () => {
     )}`
   );
 });
+
+/*
+|--------------------------------------------------------------------------
+| Health
+|--------------------------------------------------------------------------
+*/
+
+test("health reports degraded with a 503 when the database is down", async () => {
+  /*
+  | No mongoose connection is established in this file, so this exercises
+  | the unhealthy branch a load balancer would use to pull the instance.
+  */
+
+  const response = await request(app)
+    .get("/api/health")
+    .expect(503);
+
+  assert.equal(response.body.status, "degraded");
+  assert.equal(response.body.database, "disconnected");
+  assert.equal(typeof response.body.uptimeSeconds, "number");
+  assert.deepEqual(
+    response.body.providers.sort(),
+    ["gemini", "groq"]
+  );
+});
+
+test("health is not behind the rate limiter", async () => {
+  const response = await request(app).get("/api/health");
+
+  assert.equal(
+    response.headers["ratelimit-limit"],
+    undefined,
+    "monitoring probes must not consume the API rate limit"
+  );
+});
+
+/*
+|--------------------------------------------------------------------------
+| Providers
+|--------------------------------------------------------------------------
+*/
+
+test("providers lists only configured providers and requires auth", async () => {
+  await request(app).get("/api/chat/providers").expect(401);
+
+  const response = await request(app)
+    .get("/api/chat/providers")
+    .set("Authorization", `Bearer ${tokenFor()}`)
+    .expect(200);
+
+  assert.deepEqual(
+    response.body.data.providers.sort(),
+    ["gemini", "groq"]
+  );
+
+  assert.equal(response.body.data.default, "auto");
+});
+
+/*
+|--------------------------------------------------------------------------
+| Conversation validation
+|--------------------------------------------------------------------------
+|
+| These 400s are produced by the validator, before any database access.
+*/
+
+function conversations(method, path = "") {
+  return request(app)
+    [method](`/api/conversations${path}`)
+    .set("Authorization", `Bearer ${tokenFor()}`);
+}
+
+test("a non-string conversation title is rejected", async () => {
+  await conversations("post")
+    .send({ title: { $ne: null } })
+    .expect(400);
+
+  await conversations("patch", "/0123456789abcdef01234567")
+    .send({ title: { $gt: "" } })
+    .expect(400);
+});
+
+test("an empty or oversized title is rejected", async () => {
+  await conversations("post").send({ title: "   " }).expect(400);
+
+  await conversations("post")
+    .send({ title: "x".repeat(101) })
+    .expect(400);
+});
+
+test("an empty PATCH body is rejected", async () => {
+  const response = await conversations(
+    "patch",
+    "/0123456789abcdef01234567"
+  )
+    .send({})
+    .expect(400);
+
+  assert.match(response.body.message, /Nothing to update/);
+});
+
+test("an unsupported provider on a conversation is rejected", async () => {
+  await conversations("post")
+    .send({ provider: "openai" })
+    .expect(400);
+});
+
+test("an out-of-range pagination limit is rejected", async () => {
+  await conversations("get").query({ limit: 0 }).expect(400);
+  await conversations("get").query({ limit: 500 }).expect(400);
+  await conversations("get")
+    .query({ before: "not-a-date" })
+    .expect(400);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Retry validation
+|--------------------------------------------------------------------------
+*/
+
+test("a retry without a conversationId is rejected", async () => {
+  const response = await chat(tokenFor(), {
+    message: "hello",
+    retry: true,
+  }).expect(400);
+
+  assert.match(response.body.message, /retry requires/i);
+});
