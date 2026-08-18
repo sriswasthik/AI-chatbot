@@ -4,6 +4,8 @@ import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 
+import mongoose from "mongoose";
+
 import authRoutes from "./routes/auth.routes.js";
 import chatRoutes from "./routes/chat.routes.js";
 import conversationRoutes from "./routes/conversation.routes.js";
@@ -12,6 +14,8 @@ import {
   notFound,
   errorHandler,
 } from "./middleware/error.middleware.js";
+
+import { getConfiguredProviders } from "./services/ai/provider.registry.js";
 
 const app = express();
 
@@ -74,6 +78,36 @@ app.use(
     limit: "10kb",
   })
 );
+
+/*
+| Real health check for load balancers and uptime monitoring. Reports 503
+| while the database is unreachable so an instance that cannot serve
+| traffic is taken out of rotation instead of returning 500s to users.
+*/
+
+const DB_STATES = {
+  0: "disconnected",
+  1: "connected",
+  2: "connecting",
+  3: "disconnecting",
+};
+
+app.get("/api/health", (req, res) => {
+  const state = mongoose.connection.readyState;
+
+  const database = DB_STATES[state] || "unknown";
+
+  const healthy = state === 1;
+
+  res.status(healthy ? 200 : 503).json({
+    success: healthy,
+    status: healthy ? "ok" : "degraded",
+    uptimeSeconds: Math.round(process.uptime()),
+    database,
+    providers: getConfiguredProviders(),
+    timestamp: new Date().toISOString(),
+  });
+});
 
 /*
 |--------------------------------------------------------------------------

@@ -4,6 +4,31 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
+/*
+| One place that decides what goes into a token and what a user looks like
+| on the wire, so register and login cannot drift apart.
+*/
+
+const signToken = (user) =>
+  jwt.sign(
+    {
+      id: user._id.toString(),
+      email: user.email,
+      role: user.role,
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+    }
+  );
+
+const toPublicUser = (user) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+});
+
 // ==========================================
 // REGISTER
 // ==========================================
@@ -41,15 +66,17 @@ export const register = asyncHandler(
       password: hashedPassword,
     });
 
+    /*
+    | Registration signs the user straight in. Requiring a separate login
+    | immediately afterwards is friction with no security benefit -- the
+    | credentials were just verified by creating the account.
+    */
+
     return res.status(201).json({
       success: true,
       message: "User registered successfully.",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
+      token: signToken(user),
+      user: toPublicUser(user),
     });
   }
 );
@@ -101,30 +128,11 @@ export const login = asyncHandler(
       });
     }
 
-    // Generate authentication token
-    const token = jwt.sign(
-      {
-        id: user._id.toString(),
-        email: user.email,
-        role: user.role,
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn:
-          process.env.JWT_EXPIRES_IN || "7d",
-      }
-    );
-
     return res.status(200).json({
       success: true,
       message: "Login successful.",
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
+      token: signToken(user),
+      user: toPublicUser(user),
     });
   }
 );
@@ -156,12 +164,7 @@ export const getCurrentUser = asyncHandler(
 
     return res.status(200).json({
       success: true,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
+      user: toPublicUser(user),
     });
   }
 );
