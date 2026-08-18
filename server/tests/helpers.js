@@ -54,6 +54,17 @@ export async function startTestEnvironment(uri) {
   process.env.GEMINI_API_KEY = "test-gemini-key";
   process.env.CLIENT_URL = "http://localhost:5173";
 
+  /*
+  | The suite registers a fresh user per test from a single address, which
+  | legitimately trips the production auth limit. Raised rather than
+  | disabled, so the limiters stay mounted and their behaviour is still
+  | exercised (see the rate-limit tests).
+  */
+
+  process.env.AUTH_RATE_LIMIT_MAX = "10000";
+  process.env.API_RATE_LIMIT_MAX = "10000";
+  process.env.CHAT_RATE_LIMIT_MAX = "10000";
+
   await mongoose.connect(process.env.MONGODB_URI);
 
   const { default: app } = await import(

@@ -2,7 +2,6 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
-import rateLimit from "express-rate-limit";
 
 import mongoose from "mongoose";
 
@@ -16,6 +15,7 @@ import {
 } from "./middleware/error.middleware.js";
 
 import { getConfiguredProviders } from "./services/ai/provider.registry.js";
+import { apiLimiter } from "./middleware/rateLimit.middleware.js";
 
 const app = express();
 
@@ -115,24 +115,7 @@ app.get("/api/health", (req, res) => {
 |--------------------------------------------------------------------------
 */
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-
-  max: 100,
-
-  standardHeaders: true,
-
-  legacyHeaders: false,
-
-  message: {
-    success: false,
-
-    message:
-      "Too many requests. Please try again later.",
-  },
-});
-
-app.use("/api", limiter);
+app.use("/api", apiLimiter);
 
 /*
 |--------------------------------------------------------------------------

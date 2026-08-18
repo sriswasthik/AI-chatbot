@@ -2,9 +2,23 @@ import rateLimit, {
   ipKeyGenerator,
 } from "express-rate-limit";
 
+/*
+| Limits are env-tunable so they can be matched to a deployment's traffic
+| (and raised in test runs, which legitimately make many auth requests from
+| a single address). Defaults are the production values.
+*/
+
+const limitFrom = (value, fallback) => {
+  const parsed = Number.parseInt(value, 10);
+
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : fallback;
+};
+
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: limitFrom(process.env.AUTH_RATE_LIMIT_MAX, 20),
 
   standardHeaders: true,
   legacyHeaders: false,
@@ -24,7 +38,7 @@ export const authLimiter = rateLimit({
 
 export const chatLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 20,
+  max: limitFrom(process.env.CHAT_RATE_LIMIT_MAX, 20),
 
   standardHeaders: true,
   legacyHeaders: false,
@@ -41,5 +55,23 @@ export const chatLimiter = rateLimit({
     success: false,
     message:
       "Too many messages. Please slow down and try again shortly.",
+  },
+});
+
+/*
+| Blanket ceiling for everything under /api.
+*/
+
+export const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: limitFrom(process.env.API_RATE_LIMIT_MAX, 100),
+
+  standardHeaders: true,
+  legacyHeaders: false,
+
+  message: {
+    success: false,
+    message:
+      "Too many requests. Please try again later.",
   },
 });
