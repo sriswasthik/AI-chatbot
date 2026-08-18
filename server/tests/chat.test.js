@@ -859,3 +859,222 @@ test("legacy embedded messages are migrated on first read", options, async () =>
     4
   );
 });
+
+/*
+|--------------------------------------------------------------------------
+| Retry
+|--------------------------------------------------------------------------
+|
+| The user turn is persisted before the provider is called, so a retry must
+| regenerate a reply for it rather than writing the message a second time.
+*/
+
+test("retrying a failed message does not duplicate the user turn", options, async () => {
+  const { token } = await createUserAndLogin(request, app);
+
+  const restoreGroq = await stubProvider(
+    "groq",
+    failingProvider("groq is down")
+  );
+
+  const restoreGemini = await stubProvider(
+    "gemini",
+    failingProvider("gemini is down")
+  );
+
+  let conversationId;
+
+  try {
+    const failed = await send(token, {
+      message: "explain closures",
+      conversationId: null,
+    });
+
+    conversationId = failed.body.data.conversationId;
+
+    assert.ok(conversationId);
+  } finally {
+    restoreGroq();
+    restoreGemini();
+  }
+
+  const retried = await send(token, {
+    message: "explain closures",
+    conversationId,
+    retry: true,
+  }).expect(200);
+
+  assert.equal(
+    retried.body.data.conversationId,
+    conversationId
+  );
+
+  const detail = await request(app)
+    .get(`/api/conversations/${conversationId}`)
+    .set("Authorization", `Bearer ${token}`)
+    .expect(200);
+
+  const messages = detail.body.data.messages;
+
+  assert.deepEqual(
+    messages.map((m) => m.role),
+    ["user", "assistant"],
+    "the user turn must appear exactly once"
+  );
+
+  assert.equal(messages[0].content, "explain closures");
+});
+
+test("a retry is refused when the last turn is not awaiting a reply", options, async () => {
+  const { token } = await createUserAndLogin(request, app);
+
+  const created = await send(token, {
+    message: "hello",
+    conversationId: null,
+  }).expect(200);
+
+  const conversationId = created.body.data.conversationId;
+
+  // The conversation already ends with an assistant reply.
+  await send(token, {
+    message: "hello",
+    conversationId,
+    retry: true,
+  }).expect(409);
+});
+
+test("a retry cannot target another user's conversation", options, async () => {
+  const alice = await createUserAndLogin(request, app);
+  const bob = await createUserAndLogin(request, app);
+
+  const created = await send(alice.token, {
+    message: "alice message",
+    conversationId: null,
+  }).expect(200);
+
+  await send(bob.token, {
+    message: "intrusion",
+    conversationId: created.body.data.conversationId,
+    retry: true,
+  }).expect(404);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Sidebar pagination
+|--------------------------------------------------------------------------
+*/
+
+test("the conversation list pages with a stable cursor", options, async () => {
+  const { token } = await createUserAndLogin(request, app);
+
+  for (let i = 0; i < 5; i += 1) {
+    await send(token, {
+      message: `conversation ${i}`,
+      conversationId: null,
+    }).expect(200);
+  }
+
+  const firstPage = await request(app)
+    .get("/api/conversations")
+    .query({ limit: 2 })
+    .set("Authorization", `Bearer ${token}`)
+    .expect(200);
+
+  assert.equal(firstPage.body.data.length, 2);
+  assert.equal(firstPage.body.pagination.hasMore, true);
+  assert.ok(firstPage.body.pagination.nextCursor);
+
+  const secondPage = await request(app)
+    .get("/api/conversations")
+    .query({
+      limit: 2,
+      before: firstPage.body.pagination.nextCursor,
+    })
+    .set("Authorization", `Bearer ${token}`)
+    .expect(200);
+
+  assert.equal(secondPage.body.data.length, 2);
+
+  // Pages must not overlap.
+  const firstIds = firstPage.body.data.map((c) => c._id);
+  const secondIds = secondPage.body.data.map((c) => c._id);
+
+  assert.equal(
+    firstIds.filter((id) => secondIds.includes(id)).length,
+    0,
+    "pages must not repeat conversations"
+  );
+
+  const lastPage = await request(app)
+    .get("/api/conversations")
+    .query({
+      limit: 10,
+      before: secondPage.body.pagination.nextCursor,
+    })
+    .set("Authorization", `Bearer ${token}`)
+    .expect(200);
+
+  assert.equal(lastPage.body.data.length, 1);
+  assert.equal(lastPage.body.pagination.hasMore, false);
+  assert.equal(lastPage.body.pagination.nextCursor, null);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Rename
+|--------------------------------------------------------------------------
+*/
+
+test("a conversation can be renamed by its owner only", options, async () => {
+  const alice = await createUserAndLogin(request, app);
+  const bob = await createUserAndLogin(request, app);
+
+  const created = await send(alice.token, {
+    message: "original message",
+    conversationId: null,
+  }).expect(200);
+
+  const conversationId = created.body.data.conversationId;
+
+  const renamed = await request(app)
+    .patch(`/api/conversations/${conversationId}`)
+    .set("Authorization", `Bearer ${alice.token}`)
+    .send({ title: "  Renamed chat  " })
+    .expect(200);
+
+  assert.equal(renamed.body.data.title, "Renamed chat");
+
+  await request(app)
+    .patch(`/api/conversations/${conversationId}`)
+    .set("Authorization", `Bearer ${bob.token}`)
+    .send({ title: "hijacked" })
+    .expect(404);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Registration
+|--------------------------------------------------------------------------
+*/
+
+test("registration returns a token that works immediately", options, async () => {
+  const response = await request(app)
+    .post("/api/auth/register")
+    .send({
+      name: "Fresh User",
+      email: `fresh-${Date.now()}@example.com`,
+      password: "password123",
+    })
+    .expect(201);
+
+  assert.ok(
+    response.body.token,
+    "register must sign the user in"
+  );
+
+  await request(app)
+    .get("/api/auth/me")
+    .set("Authorization", `Bearer ${response.body.token}`)
+    .expect(200);
+});
