@@ -104,7 +104,7 @@ export const login = asyncHandler(
     // Generate authentication token
     const token = jwt.sign(
       {
-        id: req.user._id.toString(),
+        id: user._id.toString(),
         email: user.email,
         role: user.role,
       },

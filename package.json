@@ -1,5 +1,14 @@
-// {
-//   "dependencies": {
-//     "mongodb": "^7.5.0"
-//   }
-// }
+{
+  "name": "enterprise-ai-chatbot",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Enterprise AI Chatbot - React + Vite client and Express + MongoDB server",
+  "license": "MIT",
+  "scripts": {
+    "install:all": "npm --prefix server install && npm --prefix client install",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "test": "npm --prefix server test",
+    "lint": "npm --prefix client run lint"
+  }
+}

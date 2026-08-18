@@ -1,26 +1,28 @@
 import api from "./api";
 
+/*
+| Every function returns the unwrapped `data` payload so callers never
+| have to reach through the { success, data } envelope. Mismatched
+| unwrapping between service and caller is what originally lost the
+| conversation id.
+*/
+
 export const createConversation = async ({
   title = "New Chat",
   provider = "auto",
 } = {}) => {
-  const response = await api.post(
-    "/conversations",
-    {
-      title,
-      provider,
-    }
-  );
+  const response = await api.post("/conversations", {
+    title,
+    provider,
+  });
 
-  return response.data;
+  return response.data.data;
 };
 
 export const getConversations = async () => {
-  const response = await api.get(
-    "/conversations"
-  );
+  const response = await api.get("/conversations");
 
-  return response.data;
+  return response.data.data;
 };
 
 export const getConversation = async (
@@ -30,7 +32,7 @@ export const getConversation = async (
     `/conversations/${conversationId}`
   );
 
-  return response.data;
+  return response.data.data;
 };
 
 export const updateConversation = async (
@@ -42,7 +44,7 @@ export const updateConversation = async (
     updates
   );
 
-  return response.data;
+  return response.data.data;
 };
 
 export const deleteConversation = async (

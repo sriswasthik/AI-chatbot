@@ -29,9 +29,21 @@ app.use(helmet());
 |--------------------------------------------------------------------------
 */
 
+/*
+| Allowed origins come from CLIENT_URL (comma-separated for multiple
+| deployments) so this does not have to be edited per environment.
+*/
+
+const allowedOrigins = (
+  process.env.CLIENT_URL || "http://localhost:5173"
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: allowedOrigins,
     credentials: true,
   })
 );

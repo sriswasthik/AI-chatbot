@@ -5,13 +5,13 @@ export default function AuthLayout() {
   const features = [
     {
       icon: Sparkles,
-      title: "Azure OpenAI",
-      description: "Generate intelligent AI-powered responses.",
+      title: "Multi-Provider AI",
+      description: "Gemini and Groq behind one gateway, with automatic fallback.",
     },
     {
       icon: Database,
-      title: "Azure Cosmos DB",
-      description: "Store chats and user conversations securely.",
+      title: "MongoDB Persistence",
+      description: "Conversations and messages stored securely per user.",
     },
     {
       icon: ShieldCheck,
@@ -21,7 +21,7 @@ export default function AuthLayout() {
     {
       icon: Cpu,
       title: "Modern Stack",
-      description: "React, Node.js, Express & Azure Cloud.",
+      description: "React, Vite, Node.js, Express & MongoDB.",
     },
   ];
 
@@ -45,19 +45,18 @@ export default function AuthLayout() {
               </h1>
 
               <p className="text-slate-400">
-                Azure OpenAI Chatbot
+                Enterprise AI Chatbot
               </p>
             </div>
           </div>
 
           <h2 className="max-w-lg text-5xl font-bold leading-tight text-white">
-            Build intelligent conversations powered by Microsoft Azure.
+            Build intelligent conversations on your own stack.
           </h2>
 
           <p className="mt-6 max-w-lg text-lg text-slate-400">
-            Learn Azure OpenAI, Azure Cosmos DB, React, Express,
-            authentication, and cloud deployment by building a
-            production-ready AI chatbot.
+            Multi-provider AI, JWT authentication, and persistent
+            conversation history in a production-ready chatbot.
           </p>
 
           <div className="mt-12 space-y-6">

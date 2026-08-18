@@ -1,38 +1,18 @@
 import mongoose from "mongoose";
 
-const messageSchema = new mongoose.Schema(
-  {
-    role: {
-      type: String,
-      enum: ["user", "assistant", "system"],
-      required: true,
-    },
-
-    content: {
-      type: String,
-      required: true,
-    },
-
-    provider: {
-      type: String,
-      default: null,
-    },
-
-    model: {
-      type: String,
-      default: null,
-    },
-
-    latencyMs: {
-      type: Number,
-      default: null,
-    },
-  },
-  {
-    timestamps: true,
-    _id: true,
-  }
-);
+/*
+|--------------------------------------------------------------------------
+| Conversation
+|--------------------------------------------------------------------------
+|
+| A conversation is a lightweight container owned by exactly one user.
+| Its messages live in the Message collection and reference this document
+| via `Message.conversation`.
+|
+| Historical note: messages used to be embedded in this document as a
+| `messages` array. Those documents are migrated lazily on first read --
+| see `backfillLegacyMessages` in the conversation controller.
+*/
 
 const conversationSchema = new mongoose.Schema(
   {
@@ -54,16 +34,16 @@ const conversationSchema = new mongoose.Schema(
       type: String,
       default: "auto",
     },
-
-    messages: {
-      type: [messageSchema],
-      default: [],
-    },
   },
   {
     timestamps: true,
+    versionKey: false,
   }
 );
+
+/*
+| The sidebar reads "my conversations, newest activity first".
+*/
 
 conversationSchema.index({
   user: 1,

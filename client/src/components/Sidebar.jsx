@@ -1,8 +1,11 @@
+import { useState } from "react";
 import {
+  Loader2,
   MessageSquare,
   Plus,
-  Loader2,
+  Trash2,
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 import { useChat } from "../hooks/useChat";
 
@@ -13,10 +16,26 @@ export default function Sidebar() {
     conversationId,
     loadConversation,
     clearChat,
+    removeConversation,
   } = useChat();
 
-  function handleNewChat() {
-    clearChat();
+  const [deletingId, setDeletingId] = useState(null);
+
+  async function handleDelete(event, id) {
+    // Keep the row click from also opening the conversation.
+    event.stopPropagation();
+
+    setDeletingId(id);
+
+    try {
+      await removeConversation(id);
+
+      toast.success("Conversation deleted");
+    } catch {
+      toast.error("Failed to delete conversation");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   return (
@@ -25,22 +44,8 @@ export default function Sidebar() {
       <div className="p-4">
         <button
           type="button"
-          onClick={handleNewChat}
-          className="
-            flex
-            w-full
-            items-center
-            justify-center
-            gap-2
-            rounded-lg
-            bg-blue-600
-            px-4
-            py-2.5
-            font-medium
-            text-white
-            transition
-            hover:bg-blue-700
-          "
+          onClick={clearChat}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition hover:bg-blue-700"
         >
           <Plus size={18} />
           New Chat
@@ -48,13 +53,14 @@ export default function Sidebar() {
       </div>
 
       {/* Conversations */}
-      <div className="min-h-0 flex-1 border-t border-slate-800 p-4">
+      <div className="flex min-h-0 flex-1 flex-col border-t border-slate-800 p-4">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
           Conversations
         </p>
 
-        <div className="h-full space-y-1 overflow-y-auto">
-          {conversationsLoading ? (
+        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+          {conversationsLoading &&
+          conversations.length === 0 ? (
             <div className="flex items-center justify-center py-6 text-slate-500">
               <Loader2
                 size={18}
@@ -67,47 +73,62 @@ export default function Sidebar() {
             </p>
           ) : (
             conversations.map((conversation) => {
-              const isActive =
-                conversation._id ===
-                conversationId;
+              const id = conversation._id;
+
+              const isActive = id === conversationId;
 
               return (
-                <button
-                  key={conversation._id}
-                  type="button"
-                  onClick={() =>
-                    loadConversation(
-                      conversation._id
-                    )
-                  }
-                  className={`
-                    flex
-                    w-full
-                    items-center
-                    gap-3
-                    rounded-lg
-                    px-3
-                    py-3
-                    text-left
-                    text-sm
-                    transition
-                    ${
-                      isActive
-                        ? "bg-slate-800 text-white"
-                        : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-200"
+                <div
+                  key={id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => loadConversation(id)}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === "Enter" ||
+                      event.key === " "
+                    ) {
+                      event.preventDefault();
+                      loadConversation(id);
                     }
-                  `}
+                  }}
+                  className={`group flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-3 text-left text-sm transition ${
+                    isActive
+                      ? "bg-slate-800 text-white"
+                      : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-200"
+                  }`}
                 >
                   <MessageSquare
                     size={17}
                     className="flex-shrink-0"
                   />
 
-                  <span className="truncate">
-                    {conversation.title ||
-                      "New Chat"}
+                  <span className="min-w-0 flex-1 truncate">
+                    {conversation.title || "New Chat"}
                   </span>
-                </button>
+
+                  <button
+                    type="button"
+                    onClick={(event) =>
+                      handleDelete(event, id)
+                    }
+                    disabled={deletingId === id}
+                    title="Delete conversation"
+                    aria-label={`Delete ${
+                      conversation.title || "conversation"
+                    }`}
+                    className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-slate-500 opacity-0 transition hover:bg-slate-700 hover:text-red-400 focus:opacity-100 group-hover:opacity-100 disabled:opacity-50"
+                  >
+                    {deletingId === id ? (
+                      <Loader2
+                        size={13}
+                        className="animate-spin"
+                      />
+                    ) : (
+                      <Trash2 size={13} />
+                    )}
+                  </button>
+                </div>
               );
             })
           )}
