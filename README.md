@@ -38,6 +38,8 @@ immediately instead of surfacing later as confusing request errors.
 See `server/.env.example` and `client/.env.example` for the full list.
 `CLIENT_URL` accepts a comma-separated list of allowed CORS origins.
 `AI_AUTO_PROVIDER_CHAIN` controls the order `provider: "auto"` tries.
+`AUTH_RATE_LIMIT_MAX`, `API_RATE_LIMIT_MAX` and `CHAT_RATE_LIMIT_MAX` tune
+the rate limiters (per 15 min, 15 min and 1 min respectively).
 
 ## API
 
@@ -165,3 +167,13 @@ provider fallback, and validation. Database-backed tests need MongoDB:
 they use an ephemeral in-memory instance by default, or set
 `MONGODB_TEST_URI` to point at a running server. If neither is available
 those tests skip with an explanation and the rest still run.
+
+```bash
+# against a container
+docker run -d -p 27017:27017 --name chatbot-mongo mongo:7
+MONGODB_TEST_URI=mongodb://127.0.0.1:27017/chatbot-test npm test
+```
+
+The suite raises the rate limits via the env vars above, because it
+registers a fresh user per test from a single address. The limiters stay
+mounted so their behaviour is still exercised.
