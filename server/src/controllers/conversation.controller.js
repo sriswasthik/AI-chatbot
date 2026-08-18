@@ -125,8 +125,8 @@ export const createConversation = asyncHandler(
   async (req, res) => {
     const conversation = await Conversation.create({
       user: req.user.id,
-      title: req.body.title?.trim() || "New Chat",
-      provider: req.body.provider || "auto",
+      title: req.body.title,
+      provider: req.body.provider,
     });
 
     return res.status(201).json({
@@ -145,15 +145,40 @@ export const createConversation = asyncHandler(
 
 export const getConversations = asyncHandler(
   async (req, res) => {
-    const conversations = await Conversation.find({
-      user: req.user.id,
-    })
+    const { limit, before } = req.validatedQuery;
+
+    /*
+    | Keyset pagination on updatedAt, which is what the list is sorted by.
+    | An offset would skip or repeat rows as conversations reorder between
+    | requests. One extra row is fetched to detect whether more remain.
+    */
+
+    const filter = { user: req.user.id };
+
+    if (before) {
+      filter.updatedAt = { $lt: before };
+    }
+
+    const conversations = await Conversation.find(filter)
       .sort({ updatedAt: -1 })
+      .limit(limit + 1)
       .lean();
+
+    const hasMore = conversations.length > limit;
+
+    const page = hasMore
+      ? conversations.slice(0, limit)
+      : conversations;
 
     return res.status(200).json({
       success: true,
-      data: conversations,
+      data: page,
+      pagination: {
+        hasMore,
+        nextCursor: hasMore
+          ? page[page.length - 1].updatedAt
+          : null,
+      },
     });
   }
 );
@@ -201,25 +226,12 @@ export const updateConversation = asyncHandler(
   async (req, res) => {
     const conversation = await findOwnedConversation(req);
 
-    if (typeof req.body.title === "string") {
-      const title = req.body.title.trim();
+    /*
+    | The body is already validated and trimmed, and only declared fields
+    | survive the schema, so it can be applied directly.
+    */
 
-      if (!title) {
-        const error = new Error(
-          "Conversation title cannot be empty."
-        );
-
-        error.statusCode = 400;
-
-        throw error;
-      }
-
-      conversation.title = title;
-    }
-
-    if (typeof req.body.provider === "string") {
-      conversation.provider = req.body.provider;
-    }
+    Object.assign(conversation, req.body);
 
     await conversation.save();
 
