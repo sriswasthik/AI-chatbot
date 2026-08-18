@@ -4,6 +4,7 @@ import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 
 import { generateAIResponse } from "../services/ai/ai.gateway.js";
+import { getConfiguredProviders } from "../services/ai/provider.registry.js";
 import { AI_HISTORY_LIMIT } from "../config/ai.config.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -133,6 +134,7 @@ export const sendMessage = asyncHandler(
       provider = "auto",
       model,
       conversationId = null,
+      retry = false,
     } = req.body;
 
     const userId = req.user.id;
@@ -156,13 +158,35 @@ export const sendMessage = asyncHandler(
     /*
     | Persist the user turn before calling the provider so a provider
     | failure never loses what the user typed.
+    |
+    | A retry skips this: the user message is already stored from the
+    | attempt that failed, and writing it again would duplicate the turn.
     */
 
-    await Message.create({
-      conversation: activeConversationId,
-      role: "user",
-      content: message.trim(),
-    });
+    if (retry) {
+      const lastMessage = await Message.findOne({
+        conversation: activeConversationId,
+      })
+        .sort({ createdAt: -1, _id: -1 })
+        .select("role")
+        .lean();
+
+      if (lastMessage?.role !== "user") {
+        const error = new Error(
+          "There is no message to retry."
+        );
+
+        error.statusCode = 409;
+
+        throw error;
+      }
+    } else {
+      await Message.create({
+        conversation: activeConversationId,
+        role: "user",
+        content: message.trim(),
+      });
+    }
 
     let result;
 
@@ -237,6 +261,29 @@ export const sendMessage = asyncHandler(
         provider: result.provider,
         model: result.model,
         latencyMs: result.latencyMs,
+      },
+    });
+  }
+);
+
+/*
+|--------------------------------------------------------------------------
+| List Providers
+|--------------------------------------------------------------------------
+| GET /api/chat/providers
+|
+| Lets the client offer only providers that actually have a key configured,
+| instead of hardcoding a list and failing at send time.
+*/
+
+export const getProviders = asyncHandler(
+  async (req, res) => {
+    return res.status(200).json({
+      success: true,
+
+      data: {
+        providers: getConfiguredProviders(),
+        default: "auto",
       },
     });
   }

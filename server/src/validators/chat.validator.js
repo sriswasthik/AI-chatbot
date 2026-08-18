@@ -46,4 +46,20 @@ export const chatSchema = z.object({
     .or(z.literal(""))
     .transform((value) => value || null)
     .default(null),
-});
+
+  /*
+  | Retry regenerates a reply for the user message already stored at the
+  | end of the conversation. The user turn is not written again, so a
+  | failed send that is retried does not duplicate what the user typed.
+  */
+
+  retry: z.boolean().default(false),
+})
+  .refine(
+    (data) => !data.retry || data.conversationId !== null,
+    {
+      message:
+        "A retry requires the conversation it belongs to.",
+      path: ["conversationId"],
+    }
+  );
