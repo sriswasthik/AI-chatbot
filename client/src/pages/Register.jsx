@@ -14,9 +14,12 @@ import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 
 import { registerUser } from "../services/auth.service";
+import { useAuth } from "../hooks/useAuth";
 
 export default function Register() {
   const navigate = useNavigate();
+
+  const { setUser, setToken } = useAuth();
 
   const [form, setForm] = useState({
     name: "",
@@ -73,7 +76,7 @@ export default function Register() {
       setErrors({});
       setLoading(true);
 
-      await registerUser({
+      const data = await registerUser({
         name: form.name,
         email: form.email,
         password: form.password,
@@ -81,7 +84,16 @@ export default function Register() {
 
       toast.success("Account created successfully");
 
-      navigate("/login");
+      /*
+      | Registration returns a token, so sign the user straight in rather
+      | than bouncing them to the login form to retype what they just
+      | entered.
+      */
+
+      setToken(data.token);
+      setUser(data.user);
+
+      navigate("/", { replace: true });
     } catch (error) {
       toast.error(
         error.response?.data?.message ||
